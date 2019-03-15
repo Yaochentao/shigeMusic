@@ -17,12 +17,15 @@
               <transition name="middleL">
                 <div class="middle-l">
                   <div class="cd-wrapper">
-                    <div class="cd">
+                    <div class="cd" :class="cdClass">
                       <img :src="currentSong.al.picUrl" class="image">
                     </div>
                   </div>
+                  <div style="width: 100%;height: 50px;"></div>
                 </div>
+                
               </transition>
+              
               <!-- <transition name="middleR">
                 <scroll class="middle-r" ref="lyricList" v-show="currentShow === 'lyric'" :data="currentLyric && currentLyric.lines">
                   <div class="lyric-wrapper">
@@ -39,24 +42,25 @@
             </div>
             <div class="bottom">
               <div class="progress-wrapper">
-                <span class="time time-l">0:00</span>
+                <span class="time time-l">{{format(currentTime)}}</span>
                 <div class="progress-bar-wrapper">
+                  <progress-bar :percent="percent" />
                   <!-- <progress-bar :percent="percent" @percentChangeEnd="percentChangeEnd" @percentChange="percentChange"></progress-bar> -->
                 </div>
-                <span class="time time-r">4:10</span>
+                <span class="time time-r">{{format(duration)}}</span>
               </div>
               <div class="operators">
                 <div class="icon i-left">
                   <i class="iconfont icon-icon--1"></i>
                 </div>
                 <div class="icon i-left">
-                  <i class="iconfont icon-shangyiqu101"></i>
+                  <i @click="prev" class="iconfont icon-shangyiqu101"></i>
                 </div>
-                <div class="icon i-center">
-                  <i class="iconfont icon-suspend_icon"></i>
+                <div class="icon i-center" @click="togglePlay">
+                  <i :class="playIcon"></i>
                 </div>
                 <div class="icon i-right">
-                  <i class="iconfont icon-xiayiqu101"></i>
+                  <i @click="next" class="iconfont icon-xiayiqu101"></i>
                 </div>
                 <div class="icon i-right">
                   <i class="iconfont icon-shoucang"></i>
@@ -68,13 +72,14 @@
         <transition name="mini">
           <div class="mini-player" v-if="!fullScreen" @click="open">
             <div class="icon">
-              <img :src="currentSong.al.picUrl" width="40" height="40">
+              <img :class="cdClass" :src="currentSong.al.picUrl" width="40" height="40">
             </div>
             <div class="text">
               <h2 class="name">{{currentSong.name}}</h2>
               <div class="desc">{{currentSong.ar[0].name}}</div>
             </div>
             <div class="control">
+              <i :class="playIcon" @click.stop="togglePlay"></i>
               <!-- <progress-circle :radius="radius" :percent="percent">
                 <i class="fa" :class="miniIcon"></i>
               </progress-circle> -->
@@ -84,52 +89,121 @@
             </div>
           </div>
         </transition>
-        <audio ref="audio" :src="musicUrl"></audio>
+        <audio @canplay="getduration" @timeupdate="updateTime" ref="audio" :src="musicUrl"></audio>
       </div>
 </template>
 
 <script>
+import progressBar from '../progress-bar'
   export default {
     data() {
-      return {}
+      return {
+        currentTime: 0,
+        duration: 0
+      }
     },
-    created() {
-      
+    created() {},
+    mounted() {
     },
-    mounted() {},
     activated() {},
     methods: {
       back() {
-        this.$store.commit('SET_FULL_SCREEN',false);
+        this.$store.commit('SET_FULL_SCREEN',false);//关闭全屏播放器
       },
       open() {
-        this.$store.commit('SET_FULL_SCREEN',true);
+        this.$store.commit('SET_FULL_SCREEN',true); //打开全屏播放器
+      },
+      togglePlay() { //播放/暂停
+        this.$store.commit('SET_PLAYING_STATE',!this.playing);
+      },
+      next() {
+        let index = this.currentIndex + 1;
+        if(this.currentIndex === this.playingList.length - 1) {
+          index = 0;
+        }
+        this.$store.commit('SET_CURRENT_INDEX',index);
+        if(!this.playing) {
+          this.togglePlay()
+        }
+      },
+      prev() {
+        let index = this.currentIndex - 1;
+        if(this.currentIndex === 0) {
+          index = this.playingList.length -1;
+        }
+        this.$store.commit('SET_CURRENT_INDEX',index);
+        if(!this.playing) {
+          this.togglePlay()
+        }
+      },
+      getduration() {
+        console.log(this.$refs.audio.duration);
+        this.duration = this.$refs.audio.duration;
+      },
+      updateTime(e) {
+        this.currentTime = e.target.currentTime;  //获取audio当前播放时间
+      },
+      format(interval) { //audio时间戳格式化
+        interval = interval | 0; //取整
+        const minute = interval/60 | 0;
+        const second = this._pad(interval % 60);
+        return `${minute}:${second}`;
+      },
+      _pad(num, n=2) {  //补零
+        let len = num.toString().length;
+        while(len < n) {
+          num = '0' + num;
+          len++;
+        };
+        return num;
       }
+
     },
     computed: {
+      playIcon() {
+        return this.playing ? 'iconfont icon-suspend_icon' : 'iconfont icon-icon-1'
+      },
+      cdClass() {
+        return this.playing ? 'play' : 'play pause'
+      },
       fullScreen() {
         return this.$store.state.fullScreen;
       },
       playingList() {
         return this.$store.state.playingList;
       },
+      currentIndex() {
+        return this.$store.state.currentIndex;
+      },
       currentSong() {
         return this.$store.getters.currentSong;
       },
+      playing() {
+        return this.$store.state.playing;
+      },
       musicUrl() {
         return 'https://music.163.com/song/media/outer/url?id='+this.currentSong.id+'.mp3'
+      },
+      percent() {
+        return this.currentTime/this.duration;
       }
     },
     watch: {
-      currentSong() {
+      currentSong() {  //监听正在播放的歌曲改变
         this.$nextTick(() => {
-          console.log(this.$refs.audio)
-          this.$refs.audio.play()
+          this.$refs.audio.play();
+          // console.log(this.$refs.audio.duration); 此时duration为NaN
+        })
+      },
+      playing(newPlaying) {
+        this.$nextTick(() => {
+          const audio = this.$refs.audio;
+          newPlaying ? audio.play() : audio.pause();
         })
       }
     },
     components: {
-
+      progressBar
     }
   }
 </script>
@@ -252,7 +326,7 @@
 
       .middle {
         display: flex;
-        align-items: center;
+        // align-items: center;
         position: fixed;
         width: 100%;
         top: 80px;
@@ -265,8 +339,7 @@
           vertical-align: top;
           position: relative;
           width: 100%;
-          height: 0;
-          padding-top: 80%;
+          height: 80vw;
 
           &.middleL-enter-active,
           &.middleL-leave-active {
@@ -279,7 +352,7 @@
           }
 
           .cd-wrapper {
-            position: absolute;
+            position: relative;
             left: 10%;
             top: 0;
             width: 80%;
@@ -519,22 +592,16 @@
           top: -3px;
         }
 
-        .fa-play {
-          color: @color-theme-d;
-          font-size: 14px;
-          position: absolute;
-          left: 12px;
-          top: 8.5px;
-        }
-
-        .fa-stop {
-          color: @color-theme-d;
-          font-size: 12px;
-          position: absolute;
-          left: 11px;
-          top: 10px;
-        }
       }
+    }
+  }
+
+  @keyframes rotate {
+    0% {
+      transform: rotate(0);
+    }
+    100% {
+      transform: rotate(360deg)
     }
   }
 </style>
