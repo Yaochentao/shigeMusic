@@ -13,9 +13,13 @@
               <h1 class="title">{{currentSong.name}}</h1>
               <h2 class="subtitle">{{currentSong.ar[0].name}}</h2>
             </div>
-            <div class="middle">
-              <transition name="middleL">
-                <div class="middle-l">
+            <div class="middle" 
+                 @touchstart.prevent="middleTouchStart"
+                 @touchmove.prevent="middleTouchMove"
+                 @touchend="middleTouchEnd"
+            >
+              <!-- <transition name="middleL"> -->
+                <div class="middle-l" ref="middleL">
                   <div class="cd-wrapper">
                     <div class="cd" :class="cdClass">
                       <img :src="currentSong.al.picUrl" class="image">
@@ -23,8 +27,20 @@
                   </div>
                   <div style="width: 100%;height: 50px;"></div>
                 </div>
-                
-              </transition>
+              <!-- </transition> -->
+              
+              <!-- currentLyric不为空时传入 -->
+              <scroll :data="currentLyric && currentLyric.lines" class="middle-r" ref="lyricList"> 
+                <div class="lyric-wrapper">
+                  <div v-if="currentLyric">
+                    <p ref="lyricLine"
+                       class="text"
+                       :class="{'current':currentLineNum === index}"
+                       v-for="(line,index) in currentLyric.lines"
+                       :key="line.key">{{line.txt}}</p>
+                  </div>
+                </div>
+              </scroll>
               
               <!-- <transition name="middleR">
                 <scroll class="middle-r" ref="lyricList" v-show="currentShow === 'lyric'" :data="currentLyric && currentLyric.lines">
@@ -41,17 +57,20 @@
               </transition> -->
             </div>
             <div class="bottom">
+              <div class="dot-wrapper">
+                <span class="dot" :class="{'active':currentShow === 'cd'}"></span>
+                <span class="dot" :class="{'active':currentShow === 'lyric'}"></span>
+              </div>
               <div class="progress-wrapper">
                 <span class="time time-l">{{format(currentTime)}}</span>
                 <div class="progress-bar-wrapper">
-                  <progress-bar :percent="percent" />
-                  <!-- <progress-bar :percent="percent" @percentChangeEnd="percentChangeEnd" @percentChange="percentChange"></progress-bar> -->
+                  <progress-bar :percent="percent" @percentChange="onProgressBarChange"/>
                 </div>
                 <span class="time time-r">{{format(duration)}}</span>
               </div>
               <div class="operators">
                 <div class="icon i-left">
-                  <i class="iconfont icon-icon--1"></i>
+                  <i :class="iconMode" @click='changeMode'></i>
                 </div>
                 <div class="icon i-left">
                   <i @click="prev" class="iconfont icon-shangyiqu101"></i>
@@ -89,17 +108,23 @@
             </div>
           </div>
         </transition>
-        <audio @canplay="getduration" @timeupdate="updateTime" ref="audio" :src="musicUrl"></audio>
+        <audio @ended="end" @canplay="getduration" @timeupdate="updateTime" ref="audio" :src="musicUrl"></audio>
       </div>
 </template>
 
 <script>
 import progressBar from '../progress-bar'
+import Lyric from 'lyric-parser'
+import Scroll from '../scroll'
+import { setTimeout } from 'timers';
   export default {
     data() {
       return {
         currentTime: 0,
-        duration: 0
+        duration: 0,
+        currentLyric: null,
+        currentLineNum: 0,
+        currentShow: 'cd'
       }
     },
     created() {},
@@ -115,6 +140,24 @@ import progressBar from '../progress-bar'
       },
       togglePlay() { //播放/暂停
         this.$store.commit('SET_PLAYING_STATE',!this.playing);
+        if (this.currentLyric) {
+          this.currentLyric.togglePlay()
+        }
+
+      },
+      end() {
+        if(this.$store.state.mode === 1) {
+          this.loop();   //单曲循环使调用loop方法
+        } else {
+          this.next();
+        }
+      },
+      loop() {
+        this.$refs.audio.currentTime = 0;
+        this.$refs.audio.play();
+        if(this.currentLyric) {
+          this.currentLyric.seek(0);
+        }
       },
       next() {
         let index = this.currentIndex + 1;
@@ -149,6 +192,122 @@ import progressBar from '../progress-bar'
         const second = this._pad(interval % 60);
         return `${minute}:${second}`;
       },
+      changeMode() {
+        const mode = (this.$store.state.mode + 1) % 3;
+        this.$store.commit('SET_PALY_MODE',mode);
+        let list = null;
+        if (mode === 2) {
+          // console.log(this.$store.state.sequenceList)
+          list = this.shuffle(this.$store.state.sequenceList);
+        } else {
+          list = this.$store.state.sequenceList;
+        }
+        // this._resetCurrentIndex(list);
+        this.$store.commit('SET_PLAYLIST',list);
+      },
+      // _resetCurrentIndex(list) { //使模式切换时当前播放歌曲不变
+      //   let idnex = list.findIndex((item) => {
+      //     return item.id === this.currentSong.id
+      //   });
+      //   this.$store.commit('SET_CURRENT_INDEX',index);
+      // },
+      onProgressBarChange(percent) {
+        const currentTime = this.duration * percent;
+        this.$refs.audio.currentTime = currentTime;
+        if(this.currentLyric) {
+          this.currentLyric.seek(currentTime*1000)
+        }
+      },
+      getLyric() {
+        this.$http.get('/lyric?id='+this.currentSong.id)
+        .then((res) => {
+          this.currentLyric = new Lyric(res.data.lrc.lyric,this.handleLyric);
+          console.log(this.currentLyric)
+          if(this.playing) {
+            console.log('play')
+            this.currentLyric.play();
+          }
+        })
+      },
+      handleLyric({lineNum,txt}) {  //歌词播放时歌词每一行改变时的回调
+        console.log(lineNum);
+        this.currentLineNum = lineNum;
+        if(lineNum > 5) {
+          let lineEl = this.$refs.lyricLine[lineNum - 5];
+          this.$refs.lyricList.scrollToElement(lineEl, 1000);
+        }else {
+          this.$refs.lyricList.scrollTo(0, 0, 1000);
+        }
+        
+      },
+      middleTouchStart(e) {
+        this.touch.initiated = true; //设置表示touch开始的标志位initiated 判断是否是一次滑动
+        this.touch.moved = false;
+        const touch = e.touches[0];
+        this.touch.startX = touch.pageX;
+        this.touch.startY = touch.pageY;
+      },
+      middleTouchMove(e) {
+        if(!this.touch.initiated) {
+          return
+        }
+        const touch = e.touches[0];
+        const deltaX = touch.pageX - this.touch.startX;
+        const deltaY = touch.pageY - this.touch.startY;
+        if(Math.abs(deltaY) > Math.abs(deltaX)) {  //纵向滚动距离大于横向滚动距离时return
+          return
+        }
+        if(!this.touch.moved) {
+          this.touch.moved = true;
+        }
+        const left = this.currentShow === 'cd' ? 0 : -window.innerWidth;
+        const offsetWidth = Math.min(0,Math.max(-window.innerWidth, left + deltaX));
+        this.touch.percent = Math.abs(offsetWidth / window.innerWidth)
+
+        this.$refs.lyricList.$el.style.transform = `translate3d(${offsetWidth}px,0,0)`;
+        this.$refs.lyricList.$el.style.webkitTransform = `translate3d(${offsetWidth}px,0,0)`;
+
+        this.$refs.lyricList.$el.style.transitionDuration = `0ms`;
+        this.$refs.lyricList.$el.style.webkitTransitionDuration = `0ms`;
+
+        this.$refs.middleL.style.opacity = 1- this.touch.percent;
+        this.$refs.middleL.style.transitionDuration = `0ms`;
+      },
+      middleTouchEnd() {
+        if (!this.touch.moved) {
+          return
+        }
+        let offsetWidth;
+        let opacity;
+        if(this.currentShow === 'cd') {
+          if(this.touch.percent > 0.1) {
+            offsetWidth = -window.innerWidth;
+            opacity = 0;
+            this.currentShow = 'lyric';
+          } else {
+            offsetWidth = 0;
+            opacity = 1;
+          }
+        } else {
+          if(this.touch.percent < 0.9) {
+            offsetWidth = 0;
+            this.currentShow = 'cd'
+            opacity = 1;
+          } else {
+            offsetWidth = -window.innerWidth;
+            opacity = 0;
+          }
+        }
+        const time = 300;
+        this.$refs.lyricList.$el.style.transform = `translate3d(${offsetWidth}px,0,0)`;
+        this.$refs.lyricList.$el.style.webkitTransform = `translate3d(${offsetWidth}px,0,0)`;
+
+        this.$refs.lyricList.$el.style.transitionDuration = `${time}ms`;
+        this.$refs.lyricList.$el.style.webkitTransitionDuration = `${time}ms`;
+
+        this.$refs.middleL.style.opacity = opacity;
+        this.$refs.middleL.style.transitionDuration = `${time}ms`;
+      },
       _pad(num, n=2) {  //补零
         let len = num.toString().length;
         while(len < n) {
@@ -156,12 +315,27 @@ import progressBar from '../progress-bar'
           len++;
         };
         return num;
+      },
+      shuffle(arr) { //洗牌函数 即将数组打乱
+        for (let i = 0; i< arr.length; i++) {
+          let j = this.getRandomInt(0,i);
+          let t =arr[i];
+          arr[i] = arr[j];
+          arr[j] = t;
+        }
+        return arr;
+      },
+      getRandomInt(min,max) {
+        return Math.floor(Math.random()*(max - min +1)+min)
       }
 
     },
     computed: {
       playIcon() {
         return this.playing ? 'iconfont icon-suspend_icon' : 'iconfont icon-icon-1'
+      },
+      iconMode() {
+        return this.$store.state.mode === 0 ? 'iconfont icon-xunhuanbofang' : this.$store.state.mode === 1 ? 'iconfont icon-danquxunhuan' : 'iconfont icon-icon--1';
       },
       cdClass() {
         return this.playing ? 'play' : 'play pause'
@@ -188,12 +362,24 @@ import progressBar from '../progress-bar'
         return this.currentTime/this.duration;
       }
     },
+    created() {
+      this.touch = {};
+    },
     watch: {
       currentSong() {  //监听正在播放的歌曲改变
-        this.$nextTick(() => {
+        // this.$nextTick(() => {
+        //   this.$refs.audio.play();
+        //   // console.log(this.$refs.audio.duration); 此时duration为NaN
+          
+        // })
+        setTimeout(() => {
           this.$refs.audio.play();
-          // console.log(this.$refs.audio.duration); 此时duration为NaN
-        })
+        },1000) //防止手机前后台切换造成无法播放
+        if(this.currentLyric) {
+            console.log('stop')
+            this.currentLyric.stop();
+          }
+        this.getLyric();
       },
       playing(newPlaying) {
         this.$nextTick(() => {
@@ -203,7 +389,8 @@ import progressBar from '../progress-bar'
       }
     },
     components: {
-      progressBar
+      progressBar,
+      Scroll
     }
   }
 </script>
@@ -325,12 +512,11 @@ import progressBar from '../progress-bar'
       }
 
       .middle {
-        display: flex;
         // align-items: center;
         position: fixed;
         width: 100%;
         top: 80px;
-        bottom: 170px;
+        bottom: 190px;
         white-space: nowrap;
         font-size: 0;
 
@@ -339,7 +525,8 @@ import progressBar from '../progress-bar'
           vertical-align: top;
           position: relative;
           width: 100%;
-          height: 80vw;
+          height: 0;
+          padding-top: 80%;
 
           &.middleL-enter-active,
           &.middleL-leave-active {
@@ -352,7 +539,7 @@ import progressBar from '../progress-bar'
           }
 
           .cd-wrapper {
-            position: relative;
+            position: absolute;
             left: 10%;
             top: 0;
             width: 80%;
@@ -374,6 +561,7 @@ import progressBar from '../progress-bar'
               }
 
               .image {
+                position: absolute;
                 left: 0;
                 top: 0;
                 width: 100%;
@@ -386,10 +574,10 @@ import progressBar from '../progress-bar'
 
         .middle-r {
           display: inline-block;
-          position: absolute;
-          top: 0;
+          // position: absolute;
+          // top: 0;
           vertical-align: top;
-          width: 100%;
+          width: 100vw;
           height: 100%;
           overflow: hidden;
 
@@ -433,6 +621,24 @@ import progressBar from '../progress-bar'
         position: absolute;
         bottom: 50px;
         width: 100%;
+        .dot-wrapper {
+          text-align: center;
+          font-size: 0;
+          .dot {
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: @color-text-l;
+            &.active {
+              width: 20px;
+              border-radius: 5px;
+              background: @color-text-ll;
+            }
+          }
+        }
 
         .progress-wrapper {
           display: flex;
@@ -485,6 +691,9 @@ import progressBar from '../progress-bar'
 
             &.i-left {
               text-align: right;
+              .icon-icon--1 {
+                font-size: 38px;
+              }
             }
 
             &.i-center {

@@ -45,6 +45,7 @@ export default new Vuex.Store({
   },
   actions: {
     selectPlay({state,commit},{index,list}) {
+      // console.log(state.mode);
       commit('SET_SEQUENCELIST',list);
       commit('SET_PLAYLIST',list);
       commit('SET_CURRENT_INDEX',index);

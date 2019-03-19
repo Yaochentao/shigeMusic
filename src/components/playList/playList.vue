@@ -22,7 +22,7 @@
             </div>
           </div>
           <div class="song-list-wrapper">
-            <div class="sequence-play" v-show="listDetail.trackCount">
+            <div @click="playAll" class="sequence-play" v-show="listDetail.trackCount">
               <i class="iconfont icon-icon-1"></i>
               <span class="text">播放全部</span>
               <span class="count">(共{{listDetail.trackCount}}首)</span>
@@ -72,6 +72,12 @@
         this.$store.dispatch('selectPlay',{
           list: this.listDetail.tracks,
           index
+        });
+      },
+      playAll() {
+        this.$store.dispatch('selectPlay',{
+          list: this.listDetail.tracks,
+          index: 0
         });
       },
       back() {
