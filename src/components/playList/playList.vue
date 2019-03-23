@@ -12,11 +12,10 @@
       <scroll class="list" :data="listDetail.tracks" ref="list">
         <div class="music-list-wrapper">
           <div class="bg-image" :style="{backgroundImage: 'url(' + listDetail.coverImgUrl + ')'}">
-            <div class="filter"></div>
             <div class="text">
               <h2 class="list-title">{{listDetail.name}}</h2>
               <p class="play-count" v-if="listDetail.playCount">
-                <i class="fa fa-headphones"></i>
+                <i class="iconfont icon-erji"></i>
                 {{listDetail.playCount}}
               </p>
             </div>
@@ -163,17 +162,6 @@
           background-size: cover;
           background-position: 0 30%;
           background-repeat: no-repeat;
-
-          .filter {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: black;
-            opacity: 0.2;
-          }
-
           .text {
             position: absolute;
             width: 80%;
@@ -181,11 +169,13 @@
             bottom: 50px;
             left: 15px;
             color: #fff;
-
             .play-count {
               position: absolute;
               bottom: -16px;
               font-size: @font-size-small;
+              .icon-erji {
+                font-size: 12px;
+              }
             }
 
             .list-title {
@@ -200,7 +190,7 @@
         }
 
         .song-list-wrapper {
-          padding: 41px 0 20px 0;
+          padding: 41px 0 40px 0;
           border-radius: 10px;
           position: relative;
           top: -20px;
@@ -233,24 +223,8 @@
             }
           }
         }
-
-        // position: fixed;
-        // top: 0;
-        // bottom: 0;
-        // width: 100%;
-        // background: $color-background;
-        // height: 100%;
-        // z-index: 20;
-        // overflow: hidden;
-        // padding: 5px 0 20px 0;
       }
     }
 
-    .loading-content {
-      position: fixed;
-      width: 100%;
-      top: 70%;
-      transform: translateY(-50%);
-    }
   }
 </style>

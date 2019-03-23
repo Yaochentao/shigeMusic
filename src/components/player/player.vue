@@ -81,8 +81,8 @@
                 <div class="icon i-right">
                   <i @click="next" class="iconfont icon-xiayiqu101"></i>
                 </div>
-                <div class="icon i-right">
-                  <i class="iconfont icon-shoucang"></i>
+                <div class="icon i-right" @click.stop="showPlaylist">
+                  <i class="iconfont icon-caidan-dakai"></i>
                 </div>
               </div>
             </div>
@@ -103,11 +103,12 @@
                 <i class="fa" :class="miniIcon"></i>
               </progress-circle> -->
             </div>
-            <div class="control">
+            <div class="control" @click.stop="showPlaylist">
               <i class="iconfont icon-caidan-dakai"></i>
             </div>
           </div>
         </transition>
+        <playing-list ref="playingList"/>
         <audio @ended="end" @canplay="getduration" @timeupdate="updateTime" ref="audio" :src="musicUrl"></audio>
       </div>
 </template>
@@ -116,6 +117,7 @@
 import progressBar from '../progress-bar'
 import Lyric from 'lyric-parser'
 import Scroll from '../scroll'
+import playingList from '../playingList/playingList'
 import { setTimeout } from 'timers';
   export default {
     data() {
@@ -128,8 +130,7 @@ import { setTimeout } from 'timers';
       }
     },
     created() {},
-    mounted() {
-    },
+    mounted() {},
     activated() {},
     methods: {
       back() {
@@ -137,6 +138,9 @@ import { setTimeout } from 'timers';
       },
       open() {
         this.$store.commit('SET_FULL_SCREEN',true); //打开全屏播放器
+      },
+      showPlaylist() {
+        this.$refs.playingList.show();  //打开播放列表
       },
       togglePlay() { //播放/暂停
         this.$store.commit('SET_PLAYING_STATE',!this.playing);
@@ -193,24 +197,29 @@ import { setTimeout } from 'timers';
         return `${minute}:${second}`;
       },
       changeMode() {
-        const mode = (this.$store.state.mode + 1) % 3;
-        this.$store.commit('SET_PALY_MODE',mode);
-        let list = null;
-        if (mode === 2) {
-          // console.log(this.$store.state.sequenceList)
-          list = this.shuffle(this.$store.state.sequenceList);
-        } else {
-          list = this.$store.state.sequenceList;
-        }
-        // this._resetCurrentIndex(list);
-        this.$store.commit('SET_PLAYLIST',list);
+          const mode = (this.$store.state.mode + 1) % 3;
+          this.$store.commit('SET_PALY_MODE',mode);
+          let list = null;
+          let _list = this.sequenceList.slice(0);   //此处对this.sequenceList进行深拷贝
+          //   如直接将this.sequenceList传入shuffle函数会无意中修改state中的sequenceList
+          if (mode === 2) {
+            console.log('mode2')
+            list = this.shuffle(_list);  //洗牌函数
+          } else {
+            console.log('mode01')
+            list = _list
+          }
+          this.resetCurrentIndex(list);
+          this.$store.commit('SET_PLAYLIST',list);
+          
       },
-      // _resetCurrentIndex(list) { //使模式切换时当前播放歌曲不变
-      //   let idnex = list.findIndex((item) => {
-      //     return item.id === this.currentSong.id
-      //   });
-      //   this.$store.commit('SET_CURRENT_INDEX',index);
-      // },
+      resetCurrentIndex(list) { //使模式切换时当前播放歌曲不变
+        let index = list.findIndex((item) => {
+          return item.id === this.currentSong.id
+        });
+        console.log(index)
+        this.$store.commit('SET_CURRENT_INDEX',index);
+      },
       onProgressBarChange(percent) {
         const currentTime = this.duration * percent;
         this.$refs.audio.currentTime = currentTime;
@@ -346,6 +355,9 @@ import { setTimeout } from 'timers';
       playingList() {
         return this.$store.state.playingList;
       },
+      sequenceList() {
+        return this.$store.getters.getSequenceList;
+      },
       currentIndex() {
         return this.$store.state.currentIndex;
       },
@@ -372,14 +384,24 @@ import { setTimeout } from 'timers';
         //   // console.log(this.$refs.audio.duration); 此时duration为NaN
           
         // })
-        setTimeout(() => {
+        if(this.playing) {
+          setTimeout(() => {
           this.$refs.audio.play();
         },1000) //防止手机前后台切换造成无法播放
+        }
+        
         if(this.currentLyric) {
             console.log('stop')
             this.currentLyric.stop();
-          }
-        this.getLyric();
+        }
+        if(this.currentIndex > -1 ) {
+          this.getLyric();   //播放列表没有歌曲时不再获取歌词
+        }
+      },
+      currentIndex(newCurrentIndex) { //播放列表没有歌曲时暂停播放
+        if(newCurrentIndex === -1) {
+          this.$refs.audio.pause();
+        }
       },
       playing(newPlaying) {
         this.$nextTick(() => {
@@ -390,7 +412,8 @@ import { setTimeout } from 'timers';
     },
     components: {
       progressBar,
-      Scroll
+      Scroll,
+      playingList
     }
   }
 </script>

@@ -37,7 +37,7 @@
                                 <img v-lazy="item.picUrl">
                             </div>
                             <p class="play-count">
-                                <i class="fa fa-headphones"></i>
+                                <i class="iconfont icon-erji"></i>
                                 {{Math.floor(item.playCount / 10000) }}万
                             </p>
                             <div class="text">
@@ -87,6 +87,11 @@
                 .then((res) => {
                     this.recommendMusics = res.data.result;
                 })
+        },
+        activated() {
+            this.$nextTick(() => {
+                this.$refs.scroll.refresh();
+            })
         },
         methods: {
             toPlayList(item) {
@@ -223,6 +228,9 @@
                         right: 8px;
                         font-size: @font-size-small-s;
                         color: @color-text-l;
+                        .icon-erji {
+                            font-size: 12px;
+                        }
                     }
 
                     .text {
