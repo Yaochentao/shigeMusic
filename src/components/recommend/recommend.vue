@@ -10,7 +10,7 @@
                         </div>
                     </slider>
                 </div>
-                <div class="nav">
+                <!-- <div class="nav">
                     <div class="nav-item">
                         <i class="nav-icon iconfont icon-icon--"></i>
                         <span class="nav-text">私人FM</span>
@@ -27,7 +27,7 @@
                         <i class="nav-icon iconfont icon-paixingbang"></i>
                         <span class="nav-text">排行榜</span>
                     </div>
-                </div>
+                </div> -->
                 <div class="recommend-list">
                     <h1 class="title">推荐歌单</h1>
                     <ul>
